@@ -1,3 +1,7 @@
+"""Requirement:
+               1. mysql has been installed in computer, and the specific
+                  database has been created in mysql, e.g covid_update
+               2. libraries requied have been installed in python"""
 from bs4 import BeautifulSoup as bf
 import requests as rq
 import pymysql
@@ -7,6 +11,8 @@ import openpyxl
 import os
 import re
 import json
+
+__all__ = ['acquire_covid_data','updateMysql','organize_all_tables_into_one']
 
 def access_web(name,url='https://www.worldometers.info/coronavirus/'):
     """access web 'https://www.worldometers.info/coronavirus/'
@@ -80,8 +86,7 @@ def all_data(trs):
     return statistics
 
 def database_process(today, all_info):
-    # today = '_'.join([str('%02d'%_) for _ in time.localtime()[:3]])
-    # create_database = """CREATE DATABASE IF NOT EXISTS covid_19"""
+
     create_table = """CREATE TABLE IF NOT EXISTS %s(
                       id INT NOT NULL AUTO_INCREMENT,
                       country_region VARCHAR(100) NOT NULL,
@@ -94,23 +99,15 @@ def database_process(today, all_info):
                       serious_cases INT NOT NULL DEFAULT '0',
                       PRIMARY KEY(id));
                       """ % today
-    # cursor.execute(create_database)
-    db = pymysql.connect('localhost', 'root', 'tyc1234', 'COVID_19')
-    cursor = db.cursor()
     cursor.execute(create_table)
     insert = """INSERT INTO %s(country_region, total_cases,new_cases,total_death,
                 new_death, recovered,active_cases, serious_cases) """% today
     for each in all_info:
         values = """VALUES ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s");"""% tuple(each)
         sql = insert + values
-        # sql = """INSERT INTO %s
-        #          (country_region, total_cases,new_cases,total_death,
-        #           new_death, recovered,active_cases, serious_cases)
-        #          VALUES ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s");"""% tuple(each)
         cursor.execute(sql)
     print('成功写入 %d 个国家疫情信息' %len(all_info))
-    cursor.connection.commit()
-    db.close()
+    cursor.connection.commit() # To be abandoned
 
 def save_data(name, content):
     """
@@ -146,7 +143,6 @@ class DataBase:
 
     @staticmethod
     def select_total_cases(tables):
-        # tables = self.tables
         select_ = 'SELECT %s.country_region'%tables[0]
         for i in tables:
             temp = ', %s.total_cases %s'% (i,i)
@@ -163,12 +159,10 @@ class DataBase:
                 where_ += 'and '
         order_ = 'ORDER BY %s.total_cases DESC;'%tables[-1]
         sql = select_ + from_ + where_ + order_
-        # self.total_cases_sql = sql
         return sql
 
     @staticmethod
     def select_active_cases(tables):
-        # tables = self.tables
         select_ = 'SELECT %s.country_region'%tables[0]
         for i in tables:
             temp = ', %s.active_cases %s'% (i,i)
@@ -197,9 +191,9 @@ class DataBase:
         temp = self.tables.copy()
         temp.insert(0, 'country')
         self.data_combined = self.data
-        self.data_combined.insert(0, temp)
+        self.data_combined.insert(0, temp) # to be abandoned
 
-class SaveExcel:
+class SaveExcel: # to be abandoned
     def __init__(self):
         self.workbook = 'covid.xlsx'
         self.wb = self.getworkbook()
@@ -231,7 +225,7 @@ def main():
     except TypeError as e:
         print('原始数据错误...',e)
     finally:
-        return COVID_data
+        return COVID_data # To be abandoned
 
 def generate_excel():
     db = pymysql.connect('localhost', 'root', 'tyc1234', 'COVID_19')
@@ -245,9 +239,17 @@ def generate_excel():
     covid.process()
     excel.worksheet(covid.data_combined, 'active_cases')
     covid.db.close()
-    excel.wb.close()
+    excel.wb.close() # to be abandoned
 
 def all_url(trs):
+    """
+    INSTRUCTIONS:
+            pass into the 'tr' tags acquired from function(get_target)
+            the return the url links for all countries which can provide
+            detailed covid statistics of each country since the outbreak
+            of covid
+        return: Links of all countries
+    """
     urls = {}
     for each in trs:
         target = each.find(href=True)
@@ -260,8 +262,12 @@ def all_url(trs):
     return urls
 
 def extract_data(statistics):
-    """pass into the target raw data, which should be a dict
-       return a dict containing the extracted info from passed param:
+    """pass into the target raw data, which should be string.
+       return a dict containing the extracted info from passed <statistics>
+       info_extracted = {'coronavirus-death-log':{data},
+                         'coronavirus-cases-log':{data}，
+                         'Number of Infected People':{date}}
+       detailed as bellow:
        1、'Number of Infected People':{categories: date, data: numbers}
        2、'coronavirus-death-log':{categories: date, data: numbers}
        3、'coronavirus-cases-log':{categories: date, data: numbers}
@@ -281,6 +287,11 @@ def extract_data(statistics):
     return info_extracted
 
 def formatdate(single_date):
+    """change date format like
+       'May 03 2020'
+       INTO
+       '2020_05_03'
+       """
     temp = time.strptime(single_date,'%b %d %Y')
     return time.strftime('%Y_%m_%d',temp)
 
@@ -290,8 +301,8 @@ def find_data(page):
        1、'Number of Infected People': strings
        2、'coronavirus-death-log': strings
        3、'coronavirus-cases-log': strings
-       which all are raw data,
-       in other words, strings
+       the returned data are all raw data, in other words, strings
+       which require futher processing.
        """
     pattern = re.compile('Highcharts\.chart\([\s\S]*?;')
     data = pattern.findall(page)
@@ -307,8 +318,39 @@ def find_data(page):
     return final
 
 def re_organizeData(data):
+    """
+    the original <data> structure would be like below, e.g.:
+        data = [('America', {'coronavirus-death-log':{data},
+                             'coronavirus-cases-log':{data}，
+                             'Number of Infected People':{date}
+                             }),
+                ('Spain',{'coronavirus-death-log':{data},
+                         'coronavirus-cases-log':{data}，
+                         'Number of Infected People':{date}
+                             }),
+                ('other country', {dict data}), , , ,
+                            ]
+    the data to be return after this funtion,e.g.:
+        data = {'2020_01_22': [a list of countries with covid statistics],
+                '2020_01_23': [a list of countries with covid statistics],
+                , , , ,
+                '2020_05_03':[a list of countries with covid statistics],
+                , , , continue}
+    """
 
     def extract_single(day, statistics):
+        """
+        this funtion is to extract single item of each packed
+        covid info of a single country of a specific date
+        (note that there are 3 items packed together),
+        e.g. 'coronavirus-cases-log'
+        params:
+              day: a date to match the data in statistics
+              statistics: one of the packed covid items of a certain country
+                          e.g.'coronavirus-cases-log'
+        return: the data of a certain catagory from a country on a specific date
+                meaning e.g >> on 2020_05_03, the number of death in America is 50,000
+        """
         date_range = statistics['categories']
         num_range = statistics['data']
         position = date_range.index(day)
@@ -316,10 +358,17 @@ def re_organizeData(data):
 
     def organize_single_country(one_country):
         """return structured covid info of the given country
+           accoring to date.
            [a, b, c]
            a is total cases
-           b is avtive cases
+           b is active cases
            c is total death
+           --------------
+           the final return value would be:
+           {'given_country': {'date1':[a,b,c]},
+                              'date2':[a,b,c],
+                              ,....,
+                              'date_n':[a,b,c]}
            """
         nation = one_country[0]
         days = one_country[1]['coronavirus-cases-log']['categories']
@@ -335,15 +384,29 @@ def re_organizeData(data):
         return covidInfo
 
     def fetch(day):
+        """
+        # build a dict container for storing covid data of all countries according to date
+        # in other words, date is key, date is value
+        # the return value would be,e.g:
+            {'2020_05_03':[['America',1152379, 915269, 66929],
+                           ['Spain',245567,74234,25100],
+                           ,...,
+                           ['Portugal',25190,22496,1023]}
+        the date in the example may vary
+        """
         def sort_criteria(element):
             return element[1]
-
+        # build a dict container for storing covid data of all countries according to date
+        # in other words, date is key, date is value
         covid_at_cur_day = {day:[]}
+        # get a list of countries
         countries = covidInfo_allCountries.keys()
         for country in countries:
             try:
                 data = covidInfo_allCountries[country][day]
             except KeyError as e:
+                # if a country's covid data on a specific date is none
+                # default it into 0
                 data = [0, 0, 0]
             finally:
                 data.insert(0, country)
@@ -352,6 +415,7 @@ def re_organizeData(data):
         return covid_at_cur_day
 
     covidInfo_allCountries = {}
+    # this process would re-concstruct data structure of all countries
     for country in  data:
         try:
             covidInfo = organize_single_country(country)
@@ -359,9 +423,8 @@ def re_organizeData(data):
         except KeyError as e:
             e = str(e)
             print(country[0]+ ' >>> ' + e)
-
     China = [i[1] for i in data if i[0]=='China'][0]
-    days = China['coronavirus-cases-log']['categories']
+    days = China['coronavirus-cases-log']['categories'] # because China is the first country identified covid
     days_data = {}
     for day in days:
         cur_day_data = fetch(day)
@@ -369,8 +432,19 @@ def re_organizeData(data):
     return days_data
 
 def dump_in(tablename, tabledata):
-    # today = '_'.join([str('%02d'%_) for _ in time.localtime()[:3]])
-    # create_database = """CREATE DATABASE IF NOT EXISTS covid_19"""
+    """
+        Requirements:
+                     1. connection with database has been set up
+                     2. cur has been defined for executing sql
+        parmas:
+               tablename: The name of the table to be created in database
+                          normally would be the current date, e.g 2020_05_03
+               tabledate: The covid statistics, which should be like below >>
+                          [[covid_data_of_country1],[covid_data_of_country2],
+                           [covid_data_of_country3],...[covid_data_of_country_n]
+                          ]
+        No value will be returned
+    """
     create_table = """CREATE TABLE IF NOT EXISTS %s(
                       id INT NOT NULL AUTO_INCREMENT,
                       country_region VARCHAR(100) NOT NULL,
@@ -379,9 +453,6 @@ def dump_in(tablename, tabledata):
                       total_death INT NOT NULL DEFAULT '0',
                       PRIMARY KEY(id));
                       """ % tablename
-    # cursor.execute(create_database)
-    # db = covid.db
-    # cursor = covid.cur
     cur.execute(create_table)
     insert = "INSERT INTO %s(country_region, total_cases,active_cases,total_death) "% tablename
     for each in tabledata:
@@ -392,6 +463,10 @@ def dump_in(tablename, tabledata):
     print('成功写入 %d 个国家疫情信息添加到表单【%s】' %(len(tabledata), tablename))
 
 def updateMysql():
+    """
+    Acquire all covid statistics of all countries up to the current day
+    make sure database has been created for storing data
+    """
     today = '_'.join([str('%02d'%_) for _ in time.localtime()[:3]])
     url = 'https://www.worldometers.info/coronavirus/'
     web  = access_web(today, url)
@@ -409,13 +484,28 @@ def updateMysql():
     structured_covid_info = re_organizeData(all_countries)
     db = pymysql.connect('localhost', 'root', 'tyc1234', 'COVID_UPDATE')
     cur = db.cursor()
-    covid = DataBase(db, cur)
     for day, details in structured_covid_info.items():
         dump_in(day, details)
     return structured_covid_info
 
 def collect_data_into_one(maintable, targetable, exists=False):
-    # global exists
+    """BACKGROUND: if everyting goes right, where should be a number of tables
+                   in the current database, which most of them are defined
+                   according to date.
+                   But there are 3 unique tables, which are 'maintables', all the
+                   data from other tables will be collected into respective 'maintable'
+                   by executing this function
+           Note: This function is actually a sql(mysql query language) generator
+       INSTRUCTIONS:
+           parmas:
+                 maintable: one of the 'maintables', e.g 'active_cases'.
+                 targetable: the table contains covid statistics of a specific date
+                             e.g '2020_05_03'.
+                 exists: criteria for identifying if the maintable has existed or not
+                         create one in not, and update it if exists
+                         this param is default to Flase
+           return: the existence status of the target maintable"""
+
     create_table = """CREATE TABLE %s(
                       country_region VARCHAR(100) NOT NULL DEFAULT "unknown",
                       PRIMARY KEY(country_region));
@@ -447,11 +537,16 @@ def collect_data_into_one(maintable, targetable, exists=False):
     return exists
 
 def exclude_tables(tables):
+    """purpose of this fuction:
+            return a list of tables in current database which
+            are defined by data
+            e.g ['2020_01_22', '2020_01_23', ....,2020_05_03,..]
+       param:
+            tables:[[covid_data_of_country1],[covid_data_of_country2],
+                    [covid_data_of_country3],...[covid_data_of_country_n]]
+    """
     def formatables(tables):
-        # cur.execute('show tables;')
-        # temp =
         tables = [_[0] for _ in tables]
-        # db.close()
         return tables
     tables = formatables(tables)
     pattern = re.compile('\d{2}_\d{2}_\d{2}')
@@ -470,7 +565,7 @@ def write_in_batch(target, raw_tables):
     for table in raw_tables:
         exists = collect_data_into_one(target, table, exists)
 
-def organize_all_tables_into_one():
+def organize_all_tables_into_one(port='localhost',user='root',pw=None,db='COVID_UPDATE'):
     """connect to database and generate sql to collect
        statistics of <total_cases>,<active_cases> and <total_death>
        from each table of respective date,
@@ -478,7 +573,7 @@ def organize_all_tables_into_one():
        ---TABLE <total_cases>: all total cases from different date
        ---TABLE <active_cases>: all active cases from different date
        ---TABLE <total_death>: all total death data from different date"""
-    db = pymysql.connect('localhost', 'root', 'tyc1234', 'COVID_UPDATE')
+    db = pymysql.connect(port, user, pw, db)
     cur = db.cursor()
     cur.execute('show tables;')
     tables = cur.fetchall()
@@ -490,6 +585,24 @@ def organize_all_tables_into_one():
     return tables
 
 def if_has_new_countries(target_table,latest_table):
+    """
+        BACKGROUND: there are 233 countries and regions worldwid, however
+                   covid will take time to spread to some areas.
+                   e.g the first case in the world is 2020-01-22 in China,
+                       the first csse in America is 2020-02-15.
+                   this function will check if the covid statistics of the
+                   latest date contain some countries that didn't listed in
+                   maintable yesterday. If there are un-listed countries, add
+                   them/it into maintable.
+           Note: This function is actually a sql(mysql query language) generator
+       INSTRUCTIONS:
+           parmas:
+                 target_table: one of the maintables, e.g 'active_cases'.
+                 latest_table: normally would be the table of current date
+                               e.g 2020_05_03, but it can be other data as well.
+           return: None
+    """
+
     sql = """INSERT INTO {target_table}(country_region)
              SELECT latest
                 FROM
@@ -508,9 +621,9 @@ def if_has_new_countries(target_table,latest_table):
     if res:
         print('%d newly added countries for table <%s>.' % (res, target_table))
 
-def change_name(tablename, column1='total_death', column2='total_death'):
+def _change_name(tablename, column1='total_death', column2='total_death'):
     """定义这个函数纯粹只是为了修改之前的一些错误，death后面加了一个s
-       但是death是不可数啊，仙人板板"""
+       但是death是不可数啊"""
     sql = """ALTER TABLE
                 {tablename}
             CHANGE
@@ -519,12 +632,9 @@ def change_name(tablename, column1='total_death', column2='total_death'):
           """.format(tablename=tablename,column1=column1,column2=column2)
     cur.execute(sql)
 
-
-if __name__ == "__main__":
-    db = pymysql.connect('localhost', 'root', 'tyc1234', 'COVID_UPDATE')
+def acquire_covid_data(port='localhost',user='root',pw=None,db='COVID_UPDATE'): # main function to aquire latest covid statistics
+    db = pymysql.connect(port, user, pw, db)
     cur = db.cursor()
-    # cur.execute('show tables;')
-    # tables = exclude_tables(cur.fetchall())
     url = 'https://www.worldometers.info/coronavirus/'
     today = '_'.join([str('%02d'%_) for _ in time.localtime()[:3]])
     web = access_web(today, url)
@@ -542,3 +652,8 @@ if __name__ == "__main__":
         execute = [collect_data_into_one(_, today, exists) for _ in targetables]
     except TypeError as e:
         print('原始数据错误...',e)
+    db.close()
+    return COVID_data
+
+if __name__ == "__main__":
+    data = acquire_covid_data(pw='your_password')

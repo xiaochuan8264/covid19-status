@@ -8,34 +8,34 @@ import os
 import re
 import json
 
-def access_web(name,url):
+def access_web(name,url='https://www.worldometers.info/coronavirus/'):
+    """access web 'https://www.worldometers.info/coronavirus/'
+       and return response object
+       params:
+            <name>: the file name you want to use for storing the web page acquired,
+                    a suffix '_疫情数据.txt' would be added at the end of the name.
+            <url>: default to 'https://www.worldometers.info/coronavirus/',
+                    can be altered into a different address"""
     headers = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36'}
-    # url = 'https://www.worldometers.info/coronavirus/'
     file_name = name + '_疫情数据.txt'
     print('accessing web: %s'%url)
     response = rq.get(url=url, headers=headers)
-    # print('analyzing data')
-    # today = '_'.join([str('%02d'%_) for _ in time.localtime()[:3]])
     with open(file_name, 'w', encoding='utf-8') as f:
         f.write(response.text)
     return response
 
 def country_data(tag):
     """
-    return a list "info" contains the info listed as follows:
-
-    info[0] = "country, other"
-    info[1] = "tatal cases"
-    info[2] = "new cases"
-    info[3] = "total death"
-    info[4] = "new death"
-    info[5] = "total recovered"
-    info[6] = "avtive cases"
-    info[7] = "serious, critical"
-
-    info[8] = "tot cases/1M pop"
-    info[9] = "death/1M pop"
-    info[10] = "1st case"
+    return a list "info"
+    Make reference to the data structure in the following website:
+    --'https://www.worldometers.info/coronavirus/'
+    For instance:
+    info = ['USA', '1064572', '378', '61669 ', '13', '147411',
+            '855492', '18671', '3216', '186', '6139911',
+            '18549', 'North America'
+            ]
+    while the most citical info would be info[0], info[1], info[6] and info[3]
+    which are country, total cases, active cases and total death
     """
     info = tag.text.split('\n')
     info.pop(0)
@@ -43,29 +43,40 @@ def country_data(tag):
     return info
 
 def get_target(web):
+    """get the target tags which contain the covid information
+       of each country and region then return tags
+       Note: param <web> has to be in text format or byte format, not textwraper"""
     soup = bf(web, 'lxml')
     tbody = soup.find('tbody')
     trs = tbody.find_all(name='tr', class_=False)
     return trs
 
 def formatdata(statistic):
+    """
+       this function is meant to:
+       1. replace the field where is empty or N/A with default '0';
+       2. remove the thounds separator',' in <statistic>
+       A new statistic list would be returned after processing
+    """
     for i in range(len(statistic)):
         if statistic[i] == '' or statistic[i] == ' ':
             statistic[i] = '0'
         elif statistic[i] == 'N/A':
             statistic[i] = '0'
     statistic = [_.replace('+','').replace(',','') for _ in statistic]
-    # statistic = [statistic[i]='0' for i in range(len(statistic)) if statistic[i] == '']
     return statistic
 
 def all_data(trs):
-    """return all statistics containing the latest info on coronavirus worldwide"""
+    """
+       Pass into 'tr' tags acquired from function (get_target)
+       return all statistics containing the info of coronavirus worldwide
+       The returned object>>
+            statistics: [[covid_data_of_country1],[covid_data_of_country2],
+                          [covid_data_of_country3],...[covid_data_of_country_n]]
+    """
     statistics = [country_data(i) for i in trs]
     for i in range(len(statistics)):
-        # statistics[i] = formatdata(statistics[i][:8])
         statistics[i] = formatdata(statistics[i])
-    # statistics = [i for i in statistics if str(i[0]).isalpha()]
-    # statistics = [_.append('0') for _ in statistics if len(_) !=8]
     return statistics
 
 def database_process(today, all_info):
@@ -102,6 +113,12 @@ def database_process(today, all_info):
     db.close()
 
 def save_data(name, content):
+    """
+    <name>: the file name you want to use for storing the target <content>,
+            a suffix '_疫情数据.txt' would be added at the end of the name.
+    <content>: list or dict or set or tuple, in this module normally would be
+            a list of covid statistics
+    """
     print('save data..')
     temp = pickle.dumps(content)
     file_name = name + '_疫情数据.pl'
@@ -208,7 +225,7 @@ def main():
     raw_data = get_target(web.text)
     COVID_data = all_data(raw_data)
     save_data(today,COVID_data)
-    info_needed = [[_[0],_[1],_[3],_[6]] for _ in COVID_data]
+    info_needed = [[_[0],_[1],_[6],_[3]] for _ in COVID_data]
     try:
         database_process(today, info_needed)
     except TypeError as e:

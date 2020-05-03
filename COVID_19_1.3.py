@@ -85,7 +85,7 @@ def all_data(trs):
         statistics[i] = formatdata(statistics[i])
     return statistics
 
-def database_process(today, all_info):
+def database_process(today, all_info): # this function is abandoned
 
     create_table = """CREATE TABLE IF NOT EXISTS %s(
                       id INT NOT NULL AUTO_INCREMENT,
@@ -107,7 +107,7 @@ def database_process(today, all_info):
         sql = insert + values
         cursor.execute(sql)
     print('成功写入 %d 个国家疫情信息' %len(all_info))
-    cursor.connection.commit() # To be abandoned
+    cursor.connection.commit()
 
 def save_data(name, content):
     """
@@ -123,7 +123,7 @@ def save_data(name, content):
     with open(file_name,'wb') as f:
         f.write(temp)
 
-class DataBase:
+class DataBase: # this function is abandoned
     def __init__(self, db, cur):
         self.db = db
         self.cur = cur
@@ -191,9 +191,9 @@ class DataBase:
         temp = self.tables.copy()
         temp.insert(0, 'country')
         self.data_combined = self.data
-        self.data_combined.insert(0, temp) # to be abandoned
+        self.data_combined.insert(0, temp)
 
-class SaveExcel: # to be abandoned
+class SaveExcel: # this function is abandoned
     def __init__(self):
         self.workbook = 'covid.xlsx'
         self.wb = self.getworkbook()
@@ -225,7 +225,7 @@ def main():
     except TypeError as e:
         print('原始数据错误...',e)
     finally:
-        return COVID_data # To be abandoned
+        return COVID_data # this function is abandoned
 
 def generate_excel():
     db = pymysql.connect('localhost', 'root', 'tyc1234', 'COVID_19')
@@ -239,7 +239,7 @@ def generate_excel():
     covid.process()
     excel.worksheet(covid.data_combined, 'active_cases')
     covid.db.close()
-    excel.wb.close() # to be abandoned
+    excel.wb.close() # this function is abandoned
 
 def all_url(trs):
     """
@@ -462,7 +462,7 @@ def dump_in(tablename, tabledata):
     cur.connection.commit()
     print('成功写入 %d 个国家疫情信息添加到表单【%s】' %(len(tabledata), tablename))
 
-def updateMysql():
+def updateMysql(port='localhost',user='root',pw=None,db='COVID_UPDATE'):
     """
     Acquire all covid statistics of all countries up to the current day
     make sure database has been created for storing data
@@ -482,7 +482,7 @@ def updateMysql():
         all_countries.append(single_country)
         time.sleep(2)
     structured_covid_info = re_organizeData(all_countries)
-    db = pymysql.connect('localhost', 'root', 'tyc1234', 'COVID_UPDATE')
+    db = pymysql.connect(port, user, pw, db)
     cur = db.cursor()
     for day, details in structured_covid_info.items():
         dump_in(day, details)
